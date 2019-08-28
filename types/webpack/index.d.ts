@@ -17,6 +17,7 @@
 //                 Kyle Uehlein <https://github.com/kuehlein>
 //                 Grgur Grisogono <https://github.com/grgur>
 //                 Rubens Pinheiro Gonçalves Cavalcante <https://github.com/rubenspgcavalcante>
+//                 Daniel Schaffer <https://github.com/DanielSchaffer>
 // Definitions: https://github.com/DefinitelyTyped/DefinitelyTyped
 // TypeScript Version: 2.3
 
@@ -717,7 +718,48 @@ declare namespace webpack {
         class Asset {
         }
 
+        class Entrypoint extends ChunkGroup {
+            runtimeChunk: Chunk;
+            getRuntimeChunk(): Chunk;
+            setRuntimeChunk(chunk: Chunk): void;
+        }
+
+        class ModuleReason {
+            constructor(module: Module, dependency: Dependency, explanation: string)
+            module: Module;
+            dependency: Dependency;
+            explanation: string;
+            hasChunk(chunk: Chunk): boolean;
+            rewriteChunks(oldChunk: Chunk, newChunks: Chunk[]): void;
+        }
+
         class Module {
+            constructor(type: string, context?: string);
+            type: string;
+            context: string;
+            debugId: number;
+            hash: string;
+            renderedHash: string;
+            resolveOptions: any;
+            factoryMeta: any;
+            warnings: any[];
+            errors: any[];
+            buildMeta: any;
+            buildInfo: any;
+            reasons: ModuleReason[];
+            id: number;
+            index: number;
+            index2: number;
+            depth: number;
+            used: boolean | null;
+            usedExports: boolean | string[];
+            optimizationBailout: string | Function;
+            useSourceMap: boolean;
+
+        }
+
+        class NormalModule extends Module {
+            request: string;
         }
 
         class Record {
@@ -738,6 +780,7 @@ declare namespace webpack {
             extraAsync: boolean;
 
             hasRuntime(): boolean;
+            isInitial(): boolean;
             canBeInitial(): boolean;
             isOnlyInitial(): boolean;
             hasEntryModule(): boolean;
@@ -780,11 +823,94 @@ declare namespace webpack {
             toString(): string;
         }
 
+        interface ChunkGroupOptions {
+            name: string;
+        }
+
+        interface OriginRecord {
+            module: Module;
+            loc: any;
+            request: string;
+        }
+
+        class DependenciesBlockVariable {
+            constructor(name: string, expression: string, dependencies?: Dependency[])
+            name: string;
+            expression: string;
+            dependencies: Dependency[];
+        }
+
+        class DependenciesBlock {
+            dependencies: Dependency[];
+            block: DependenciesBlock[];
+            variables: DependenciesBlockVariable[];
+        }
+
+        class AsyncDependenciesBlock extends DependenciesBlock {
+            constructor(groupOptions: { name: string }, module: Module, loc: DependencyLocation, request: string);
+            groupOptions: { name: string };
+            chunkGroup: ChunkGroup;
+            module: Module;
+            loc: DependencyLocation;
+            request: string;
+            parent: DependenciesBlock;
+            chunkName: string;
+
+
+        }
+
         class ChunkGroup {
+            constructor(options?: ChunkGroupOptions | string);
+            readonly id: string;
+            groupDebugId: number;
+            options: ChunkGroupOptions;
+            hash: string;
+            chunks: Chunk[];
+            origins: OriginRecord[];
+            addOptions(options: ChunkGroupOptions): void;
+            name: string;
+            readonly debugId: string;
+            unshiftChunk(chunk: Chunk): boolean;
+            insertChunk(chunk: Chunk, before: Chunk): boolean;
+            pushChunk(chunk: Chunk): boolean;
+            replaceChunk(chunk: Chunk, newChunk: Chunk): boolean;
+            removeChunk(chunk: Chunk): boolean;
+            isInitial(): boolean;
+            addChild(chunk: Chunk): boolean;
+            getChildren(): ChunkGroup[];
+            getNumberOfChildren(): number;
+            readonly childrenIterable: SortableSet<ChunkGroup>;
+            removeChild(chunk: ChunkGroup): boolean;
+            addParent(parentChunk: ChunkGroup): boolean;
+            setParents(newParents: ChunkGroup[]): void;
+            getParents(): ChunkGroup[];
+            getNumberOfParents(): number;
+            hasParent(parent: ChunkGroup): boolean;
+            readonly parentsIterable: SortableSet<ChunkGroup>;
+            removeParent(chunk: ChunkGroup): boolean;
+            getBlocks(): DependenciesBlock[];
         }
 
         class ChunkHash {
         }
+
+        interface SourcePosition {
+            line: number;
+            column?: number;
+        }
+
+        interface RealDependencyLocation {
+            start: SourcePosition;
+            end?: SourcePosition;
+            index?: number;
+        }
+
+        interface SyntheticDependencyLocation {
+            name: string;
+            index?: number;
+        }
+
+        type DependencyLocation = RealDependencyLocation | SyntheticDependencyLocation;
 
         class Dependency {
             constructor();
@@ -795,6 +921,12 @@ declare namespace webpack {
             getErrors(): any;
             updateHash(hash: any): void;
             disconnect(): void;
+            originModule: Module;
+            module: Module;
+            weak: boolean;
+            optional: boolean;
+            loc: DependencyLocation;
+            /** @deprecated Dependency.compare is deprecated and will be removed in the next major version */
             static compare(a: any, b: any): any;
         }
 
@@ -934,6 +1066,7 @@ declare namespace webpack {
 
         class MainTemplate extends Tapable {
           hooks: {
+            beforeStartup: SyncWaterfallHook<string, Chunk, string>;
             jsonpScript?: SyncWaterfallHook<string, Chunk, string>;
             requireExtensions: SyncWaterfallHook<string, Chunk, string>;
           };
@@ -957,6 +1090,7 @@ declare namespace webpack {
         }
 
         class Compilation extends Tapable {
+            name: string;
             hooks: CompilationHooks;
             compiler: Compiler;
 
@@ -985,8 +1119,8 @@ declare namespace webpack {
             entries: any[];
             _preparedEntrypoints: any[];
             entrypoints: Map<any, any>;
-            chunks: any[];
-            chunkGroups: any[];
+            chunks: Chunk[];
+            chunkGroups: ChunkGroup[];
             namedChunkGroups: Map<any, any>;
             namedChunks: Map<any, any>;
             modules: any[];
@@ -1020,6 +1154,7 @@ declare namespace webpack {
              * @deprecated Compilation.applyPlugins is deprecated. Use new API on `.hooks` instead
              */
             applyPlugins(name: string, ...args: any[]): void;
+            addChunkInGroup(groupOptions: string | ChunkGroupOptions, module: Module, loc: DependencyLocation, request: string): ChunkGroup;
         }
 
         interface CompilerHooks {
